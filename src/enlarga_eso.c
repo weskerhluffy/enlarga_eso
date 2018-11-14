@@ -510,61 +510,180 @@ CACA_COMUN_FUNC_STATICA natural primos_caca_criba(natural limite,
 
 #endif
 
+#if 1
+
+#define BITCH_VALOR_INVALIDO CACA_COMUN_VALOR_INVALIDO
+
+typedef struct bitch_vector_ctx {
+	natural bitch_numeros_agregados_tam;
+	bitch_vector *bitch_mapa;
+} bitch_vector_ctx;
+
+CACA_COMUN_FUNC_STATICA bitch_vector_ctx *bitch_init(natural max_nums) {
+	bitch_vector_ctx *bvctx = NULL;
+	bvctx = calloc(1, sizeof(bitch_vector_ctx));
+	bvctx->bitch_mapa = calloc(((max_nums / (sizeof(bitch_vector) * 8)) + 1),
+			sizeof(bitch_vector));
+	assert_timeout(bvctx->bitch_mapa);
+	return bvctx;
+}
+
+CACA_COMUN_FUNC_STATICA bool bitch_checa(bitch_vector_ctx *bvctx,
+		entero_largo_sin_signo posicion) {
+	entero_largo_sin_signo resultado = 0;
+	natural idx_arreglo = 0;
+	natural idx_registro = 0;
+
+	idx_arreglo = posicion / 64;
+	idx_registro = posicion % 64;
+
+	resultado = bvctx->bitch_mapa[idx_arreglo]
+			& (bitch_vector) ((bitch_vector) 1 << idx_registro);
+
+	return !!resultado;
+}
+
+CACA_COMUN_FUNC_STATICA void bitch_asigna(bitch_vector_ctx *bvctx,
+		entero_largo_sin_signo posicion) {
+	natural idx_arreglo = 0;
+	natural idx_registro = 0;
+
+	idx_arreglo = posicion / 64;
+	idx_registro = posicion % 64;
+
+	bvctx->bitch_mapa[idx_arreglo] |= (bitch_vector) ((bitch_vector) 1
+			<< idx_registro);
+	bvctx->bitch_numeros_agregados_tam++;
+
+}
+
+CACA_COMUN_FUNC_STATICA void bitch_limpia(bitch_vector_ctx *bvctx,
+		entero_largo_sin_signo posicion) {
+	int idx_arreglo = 0;
+	int idx_registro = 0;
+	bitch_vector *bits = bvctx->bitch_mapa;
+
+	idx_arreglo = posicion / 64;
+	idx_registro = posicion % 64;
+
+	bits[idx_arreglo] &= (bitch_vector) ~((bitch_vector) 1 << idx_registro);
+
+	bvctx->bitch_numeros_agregados_tam--;
+}
+
+CACA_COMUN_FUNC_STATICA void bitch_fini(bitch_vector_ctx *bvctx) {
+	free(bvctx->bitch_mapa);
+	free(bvctx);
+}
+
+#endif
+
 typedef struct enlarga_caca_datos {
-	natural *ocurrencias;
-	natural *multiplos;
-	natural max_multiplos;
+	natural *primer_factor;
 } enlarga_caca_datos;
 
 void primo_encontrado_cb(natural primo, natural idx_primo, void *cb_ctx) {
 	enlarga_caca_datos *d = cb_ctx;
-	d->multiplos[idx_primo] += d->ocurrencias[primo];
-	if (d->multiplos[idx_primo] > d->max_multiplos) {
-		d->max_multiplos = d->multiplos[idx_primo];
-	}
+	d->primer_factor[primo] = idx_primo;
 }
 void compuesto_encontrado_cb(natural primo, natural idx_primo,
 		natural compuesto_origen, void *cb_ctx) {
 	enlarga_caca_datos *d = cb_ctx;
 	natural compuesto = primo * compuesto_origen;
-	d->multiplos[idx_primo] += d->ocurrencias[compuesto];
-	if (d->multiplos[idx_primo] > d->max_multiplos) {
-		d->max_multiplos = d->multiplos[idx_primo];
-	}
+	d->primer_factor[compuesto] = idx_primo;
 }
 
 #define MAX_PRIMOS_ESPERADOS 970704
 #define MAX_CACAS ((natural)3E5)
 CACA_COMUN_FUNC_STATICA natural enlarga_caca_core(natural *a, natural a_tam) {
 	natural *ocurrencias = NULL;
-	natural *multiplos = NULL;
+	natural *primer_factor = NULL;
+	natural *num_multiplos = NULL;
 	natural primos_tam = 0;
 	enlarga_caca_datos *d = caca_comun_calloc_local(enlarga_caca_datos);
 	natural r = 0;
+	natural max_multiplos = 0;
+	natural max_multiplos_1 = 0;
+	bitch_vector_ctx *bv = NULL;
+	bitch_vector_ctx *nums_vistos = NULL;
 
 	ocurrencias = calloc(PRIMOS_CACA_MAX + 1, sizeof(natural));
 	assert_timeout(ocurrencias);
-	multiplos = calloc(MAX_PRIMOS_ESPERADOS, sizeof(natural));
-	assert_timeout(multiplos);
+	primer_factor = calloc(PRIMOS_CACA_MAX + 1, sizeof(natural));
+	assert_timeout(primer_factor);
+	num_multiplos = calloc(MAX_PRIMOS_ESPERADOS, sizeof(natural));
+	assert_timeout(num_multiplos);
+	nums_vistos = bitch_init(PRIMOS_CACA_MAX + 1);
+	assert_timeout(nums_vistos);
 
 	for (natural i = 0; i < a_tam; i++) {
 		ocurrencias[a[i]] += 1;
+		caca_log_debug("el num %u aora tiene %u ocurrencias", a[i],
+				ocurrencias[a[i]]);
 	}
 
-	d->ocurrencias = ocurrencias;
-	d->multiplos = multiplos;
+	d->primer_factor = primer_factor;
 
 	primos_tam = primos_caca_criba(PRIMOS_CACA_MAX, primo_encontrado_cb,
 			compuesto_encontrado_cb, d);
 	assert_timeout(primos_tam<=MAX_PRIMOS_ESPERADOS);
-	assert_timeout(d->max_multiplos <= a_tam);
 
-	if (d->max_multiplos) {
-		r = a_tam - d->max_multiplos;
+	for (natural i = 0; i < a_tam; i++) {
+		natural n = a[i];
+		natural ocurrencias_act = ocurrencias[n];
+		caca_log_debug("el num ori %u sus ocurencias %u", n, ocurrencias_act);
+		if (bitch_checa(nums_vistos, n)) {
+			continue;
+		}
+
+		bitch_asigna(nums_vistos, n);
+
+		bv = bitch_init(MAX_PRIMOS_ESPERADOS);
+		assert_timeout(bv);
+
+		while (n != 1) {
+			natural idx_primer_primo = primer_factor[n];
+			natural primer_primo = primos_caca[idx_primer_primo];
+			if (!bitch_checa(bv, idx_primer_primo)) {
+				num_multiplos[idx_primer_primo] += ocurrencias_act;
+				bitch_asigna(bv, idx_primer_primo);
+			}
+
+			caca_log_debug("primer factor de %u es %u", n, primer_primo);
+
+			if (max_multiplos < num_multiplos[idx_primer_primo]) {
+				max_multiplos = num_multiplos[idx_primer_primo];
+			}
+
+			n /= primer_primo;
+		}
+
+		bitch_fini(bv);
+	}
+
+	caca_log_debug("max multiplos %u", max_multiplos);
+	if (max_multiplos == a_tam) {
+		for (natural i = 0; i < MAX_PRIMOS_ESPERADOS; i++) {
+			natural multiplos_act = num_multiplos[i];
+			if (multiplos_act < max_multiplos
+					&& multiplos_act > max_multiplos_1) {
+				max_multiplos_1 = multiplos_act;
+			}
+		}
+	}
+	caca_log_debug("max multiplos a %u", max_multiplos);
+	if (max_multiplos_1) {
+		max_multiplos = max_multiplos_1;
+	}
+	caca_log_debug("max multiplos b %u", max_multiplos);
+	if (max_multiplos && max_multiplos < a_tam) {
+		r = a_tam - max_multiplos;
 	}
 
 	free(ocurrencias);
-	free(multiplos);
+	free(primer_factor);
+	free(num_multiplos);
+	bitch_fini(nums_vistos);
 
 	return r;
 }
