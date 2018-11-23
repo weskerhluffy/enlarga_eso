@@ -458,6 +458,34 @@ CACA_COMUN_FUNC_STATICA void caca_comun_invierte_arreglo_natural(natural *a,
 	}
 }
 
+CACA_COMUN_FUNC_STATICA natural caca_comun_encuentra_minimo_natural(natural *a,
+		natural a_tam) {
+	natural min = CACA_COMUN_VALOR_INVALIDO;
+	for (natural i = 0; i < a_tam; i++) {
+		if (min > a[i]) {
+			min = a[i];
+		}
+	}
+	return min;
+}
+
+CACA_COMUN_FUNC_STATICA natural caca_comun_mcd(natural a, natural b) {
+	natural r = CACA_COMUN_VALOR_INVALIDO;
+	while (a && b) {
+		natural tmp = b;
+		b = a % b;
+		a = tmp;
+	}
+
+	if (!a) {
+		r = b;
+	}
+	if (!b) {
+		r = a;
+	}
+	return r;
+}
+
 #endif
 
 #if 1
@@ -606,6 +634,7 @@ CACA_COMUN_FUNC_STATICA natural enlarga_caca_core(natural *a, natural a_tam) {
 	natural max_multiplos_1 = 0;
 	bitch_vector_ctx *bv = NULL;
 	bitch_vector_ctx *nums_vistos = NULL;
+	natural mcd = 0;
 
 	ocurrencias = calloc(PRIMOS_CACA_MAX + 1, sizeof(natural));
 	assert_timeout(ocurrencias);
@@ -616,17 +645,23 @@ CACA_COMUN_FUNC_STATICA natural enlarga_caca_core(natural *a, natural a_tam) {
 	nums_vistos = bitch_init(PRIMOS_CACA_MAX + 1);
 	assert_timeout(nums_vistos);
 
+	mcd = a[0];
 	for (natural i = 0; i < a_tam; i++) {
 		ocurrencias[a[i]] += 1;
 		caca_log_debug("el num %u aora tiene %u ocurrencias", a[i],
 				ocurrencias[a[i]]);
+		mcd = caca_comun_mcd(mcd, a[i]);
 	}
+	caca_log_debug("mcd es %u", mcd);
 
 	d->primer_factor = primer_factor;
 
 	primos_tam = primos_caca_criba(PRIMOS_CACA_MAX, primo_encontrado_cb,
 			compuesto_encontrado_cb, d);
 	assert_timeout(primos_tam<=MAX_PRIMOS_ESPERADOS);
+
+	bv = bitch_init(MAX_PRIMOS_ESPERADOS);
+	assert_timeout(bv);
 
 	for (natural i = 0; i < a_tam; i++) {
 		natural n = a[i];
@@ -637,9 +672,6 @@ CACA_COMUN_FUNC_STATICA natural enlarga_caca_core(natural *a, natural a_tam) {
 		}
 
 		bitch_asigna(nums_vistos, n);
-
-		bv = bitch_init(MAX_PRIMOS_ESPERADOS);
-		assert_timeout(bv);
 
 		while (n != 1) {
 			natural idx_primer_primo = primer_factor[n];
@@ -658,8 +690,18 @@ CACA_COMUN_FUNC_STATICA natural enlarga_caca_core(natural *a, natural a_tam) {
 			n /= primer_primo;
 		}
 
-		bitch_fini(bv);
+		n = a[i];
+
+		while (n != 1) {
+			natural idx_primer_primo = primer_factor[n];
+			natural primer_primo = primos_caca[idx_primer_primo];
+			bitch_limpia(bv, idx_primer_primo);
+			n /= primer_primo;
+		}
+
 	}
+
+	bitch_fini(bv);
 
 	caca_log_debug("max multiplos %u", max_multiplos);
 	if (max_multiplos == a_tam) {
@@ -671,14 +713,22 @@ CACA_COMUN_FUNC_STATICA natural enlarga_caca_core(natural *a, natural a_tam) {
 			}
 		}
 	}
-	caca_log_debug("max multiplos a %u", max_multiplos);
 	if (max_multiplos_1) {
 		max_multiplos = max_multiplos_1;
 	}
-	caca_log_debug("max multiplos b %u", max_multiplos);
-	if (max_multiplos && max_multiplos < a_tam) {
+	caca_log_debug("max multiplos a %u", max_multiplos);
+	if (max_multiplos) {
+		if (max_multiplos == a_tam) {
+			natural min = caca_comun_encuentra_minimo_natural(a, a_tam);
+			caca_log_debug("el min %u", min);
+			max_multiplos_1 = ocurrencias[min];
+			if (max_multiplos_1 != max_multiplos) {
+				max_multiplos = a_tam - max_multiplos_1;
+			}
+		}
 		r = a_tam - max_multiplos;
 	}
+	caca_log_debug("max multiplos b %u", max_multiplos);
 
 	free(ocurrencias);
 	free(primer_factor);
