@@ -9,6 +9,10 @@
  */
 
 // XXX: http://codeforces.com/contest/1047/problem/C
+// XXX: https://gist.github.com/dario2994/fb4713f252ca86c1254d
+// XXX: https://codegolf.stackexchange.com/questions/74487/highly-composite-numbers
+// XXX: https://pyth.herokuapp.com/?code=uf%3CFml%7ByPd%2CGTGQ1&test_suite=1&test_suite_input=0%0A9%0A19&debug=0
+// XXX: https://tio.run/#jelly#code=LMKuw4ZETOKCrOG5m8KpMD4vP8K1xpMj&input=MjA
 #if 1
 #define _GNU_SOURCE
 //#define _XOPEN_SOURCE 700
